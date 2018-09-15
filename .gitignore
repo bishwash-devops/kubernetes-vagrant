@@ -1,0 +1,70 @@
+Skip to content
+ 
+Search or jump to…
+
+Pull requests
+Issues
+Marketplace
+Explore
+ @bishwash-devops Sign out
+808
+17,238 3,526 hashicorp/vagrant
+ Code  Issues 397  Pull requests 45  Projects 1  Wiki  Insights
+vagrant/.gitignore
+bab9403  on Feb 28
+@chrisroberts chrisroberts Add a custom path location to ignore
+@mitchellh @johnbender @chrisroberts @zmt @robkinyon @miketheman @ebelew @bpo @briancain
+     
+53 lines (43 sloc)  527 Bytes
+# OS-specific
+.DS_Store
+
+# Editor swapfiles
+.*.sw?
+*~
+
+# Vagrant stuff
+acceptance_config.yml
+boxes/*
+/.vagrant
+/website/.vagrant
+/website/build
+/vagrant-spec.config.rb
+test/vagrant-spec/.vagrant/
+
+# Bundler/Rubygems
+*.gem
+.bundle
+pkg/*
+tags
+/Gemfile.lock
+test/tmp/
+vendor/
+/exec
+.ruby-bundle
+
+# Documentation
+_site/*
+.yardoc/
+doc/
+
+# Python
+*.pyc
+
+# Rubinius
+*.rbc
+
+# IDE junk
+.idea/*
+*.iml
+.project
+
+# Ruby Managers
+.rbenv
+.rbenv-gemsets
+.ruby-gemset
+.ruby-version
+.rvmrc
+
+# Box storage for spec
+test/vagrant-spec/boxes/*.box
