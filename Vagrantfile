@@ -21,10 +21,11 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         end # end provider
 
         if hostname == "kubemaster"
-			cfg.vm.provision :ansible do |ansible|
-				# Disable default limit to connect to all the machines
-				ansible.limit = "all"
-				ansible.playbook = "master-playbook.yml"
+            cfg.vm.provision :ansible do |ansible|
+            # Disable default limit to connect to all the machines
+            ansible.limit = "all"
+            ansible.playbook = "master-playbook.yml"
+            ansible.tags="docker_ce"
         	end # end ansible
         end # if
     end # end cfg

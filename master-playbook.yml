@@ -64,3 +64,44 @@
     - debug: msg="{{kubectl_version.stdout}}"
 
     tags: kube_binaries
+
+
+  # Install Docker-CE
+  - block:
+
+    - name: Install Docker and role dependencies
+      apt:
+        name: "{{ item }}"
+        state: present
+        update_cache: True
+      with_items:
+        - "apt-transport-https"
+        - "ca-certificates"
+        - "software-properties-common"
+      tags: apt
+
+    - name: Add Docker’s official GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Configure upstream APT repository
+      apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/{{ ansible_distribution | lower }} {{ ansible_distribution_release }} stable"
+        state: present
+        update_cache: True
+
+    - name: Install Docker
+      apt:
+        name: "docker-ce"
+        state: present
+
+    - name: adding user 'vagrant' to group docker
+      user:
+        name: 'vagrant'
+        groups: docker
+        append: yes
+
+    tags: docker_ce
+
+
