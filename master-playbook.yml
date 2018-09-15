@@ -1,0 +1,66 @@
+---
+- hosts: all
+  become: yes
+  tasks:
+  # Network Configurations
+  - block:
+    - name: "Set ip forwarding on in /proc and in the sysctl file and reload if necessary"
+      sysctl:
+        name: net.ipv4.ip_forward
+        value: 1
+        sysctl_set: yes
+        state: present
+        reload: yes
+
+    - name: "Enable Firewall, Allow SSH"
+      ufw:
+        rule: allow
+        port: 22
+        state: enabled
+
+    - name: "Firewall Update, Allow TCP Ports."
+      ufw:
+        rule: allow
+        port: 80
+        proto: tcp
+        state: enabled
+      with_items:
+        - 80
+        - 443
+    tags: network_config
+
+  # Install Kubernetes Binaries
+  - block:
+    - name: "Download kubernetes.tar.gz"
+      unarchive:
+        src: "https://github.com/kubernetes/kubernetes/releases/download/v1.10.8/kubernetes.tar.gz"
+        dest: /opt/
+        remote_src: yes
+
+    - name: "Run get-kube-binaries.sh"
+      shell: "echo 'y' | /opt/kubernetes/cluster/get-kube-binaries.sh"
+
+    # - name: "Add '/opt/kubernetes/client/bin' to your PATH"
+    #   copy:
+    #     dest: /etc/profile.d/kubernetes-path.sh
+    #     content: 'PATH=$PATH:/opt/kubernetes/client/bin'
+
+    - name: "Unarchive Server Binaries"
+      unarchive: 
+        src: /opt/kubernetes/server/kubernetes-server-linux-amd64.tar.gz
+        dest: /opt/
+        remote_src: yes
+
+    - name: "Add '/opt/kubernetes/server/bin' to your PATH"
+      copy:
+        dest: /etc/profile.d/kubernetes-path.sh
+        content: 'PATH=$PATH:/opt/kubernetes/server/bin'
+
+    # Print Kubectl Version
+    - command: "/opt/kubernetes/server/bin/kubectl version"
+      register: kubectl_version
+      ignore_errors: yes
+      no_log: True
+    - debug: msg="{{kubectl_version.stdout}}"
+
+    tags: kube_binaries
