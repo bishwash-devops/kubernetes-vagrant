@@ -25,7 +25,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
             # Disable default limit to connect to all the machines
             ansible.limit = "all"
             ansible.playbook = "master-playbook.yml"
-            ansible.tags="docker_ce"
+            ansible.tags="certs"
         	end # end ansible
         end # if
     end # end cfg

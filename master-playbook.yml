@@ -1,6 +1,11 @@
 ---
 - hosts: all
   become: yes
+  vars:
+    kube_dir: /opt
+    MASTER_IP: 192.168.56.10
+    MASTER_CLUSTER_IP: 192.168.56.1
+    pki_dir: "{{kube_dir}}/kubernetes/pki"
   tasks:
   # Network Configurations
   - block:
@@ -34,11 +39,12 @@
     - name: "Download kubernetes.tar.gz"
       unarchive:
         src: "https://github.com/kubernetes/kubernetes/releases/download/v1.10.8/kubernetes.tar.gz"
-        dest: /opt/
+        dest: "{{kube_dir}}/"
         remote_src: yes
+        creates: "{{kube_dir}}/kubernetes"
 
     - name: "Run get-kube-binaries.sh"
-      shell: "echo 'y' | /opt/kubernetes/cluster/get-kube-binaries.sh"
+      shell: "echo 'y' | {{kube_dir}}/kubernetes/cluster/get-kube-binaries.sh"
 
     # - name: "Add '/opt/kubernetes/client/bin' to your PATH"
     #   copy:
@@ -47,9 +53,10 @@
 
     - name: "Unarchive Server Binaries"
       unarchive: 
-        src: /opt/kubernetes/server/kubernetes-server-linux-amd64.tar.gz
-        dest: /opt/
+        src: "{{kube_dir}}/kubernetes/server/kubernetes-server-linux-amd64.tar.gz"
+        dest: "{{kube_dir}}/"
         remote_src: yes
+        creates: "{{kube_dir}}/kubernetes/server/bin"
 
     - name: "Add '/opt/kubernetes/server/bin' to your PATH"
       copy:
@@ -104,4 +111,71 @@
 
     tags: docker_ce
 
+  # Generate Certificates
+  - block:
 
+    # Check if ca.crt is already created
+    - stat: 
+        path: "{{pki_dir}}/ca.crt"
+      register: ca_cert
+  
+    - debug:
+        msg: "Certificate already exists."
+      when: ca_cert.stat.exists == True
+
+    # Generate Certificates if ca_cert does not exist
+    - block:
+      - name: Download easyrsa
+        unarchive:
+          src: https://storage.googleapis.com/kubernetes-release/easy-rsa/easy-rsa.tar.gz
+          dest: "{{kube_dir}}"
+          remote_src: yes
+
+      - set_fact:
+          rsa_dir: "{{kube_dir}}/easy-rsa-master/easyrsa3"
+      
+      - name: "Remove existing pki directory"
+        file:
+          path: "{{rsa_dir}}/pki"
+          state: absent
+
+      - name: init-pki
+        shell: ./easyrsa init-pki 
+        args:
+          chdir: "{{rsa_dir}}"
+
+      - name: Generate a CA
+        shell: ./easyrsa --batch "--req-cn={{MASTER_IP}}@`date +%s`" build-ca nopass
+        args:
+          chdir: "{{rsa_dir}}"
+
+      - name: Generate server certificate and key
+        shell: ./easyrsa --subject-alt-name="IP:{{MASTER_IP}},"\
+          "IP:{{MASTER_CLUSTER_IP}},"\
+          "DNS:kubernetes,"\
+          "DNS:kubernetes.default,"\
+          "DNS:kubernetes.default.svc,"\
+          "DNS:kubernetes.default.svc.cluster,"\
+          "DNS:kubernetes.default.svc.cluster.local" \
+          --days=10000 \
+          build-server-full server nopass
+        args:
+          chdir: "{{rsa_dir}}"
+
+      - name: Create directory for pki certs
+        file:
+          path: "{{pki_dir}}"
+          state: directory
+
+      - name: "Copy certs to pki directory {{pki_dir}}"
+        copy:
+          src: "{{item}}"
+          dest: "{{pki_dir}}/"
+          remote_src: yes
+        with_items:
+          - "{{rsa_dir}}/pki/ca.crt"
+          - "{{rsa_dir}}/pki/issued/server.crt"
+          - "{{rsa_dir}}/pki/private/server.key"
+
+      when: ca_cert.stat.exists == False
+    tags: certs   
