@@ -58,9 +58,23 @@ Fundamental requirements:
 
 
 
+# Install Cluster using Vagrant Deployer for Kubernetes Ansible
+Reference: https://github.com/kubernetes/contrib/tree/master/ansible/vagrant
 
+### Access to Kubernetes Dashboard
+1. Copy kubecfg certs from the master node to local. 
+2. Generate a pkcs12 file from the kubecfg cert/key pair. This is the format that you can import into the keychain that Chrome/Safari will use as a client cert
+3. Import to KeyChain 
 
-
+```
+$  security iopenssl pkcs12 -export -clcerts -inkey kubecfg.key -in kubecfg.crt -out kubecfg.p12 -name "kubecfg"
+$  openssl pkcs12 -export -clcerts -inkey kubecfg.key -in kubecfg.crt -out kubecfg.p12 -name "kubecfg"
+Enter Export Password:
+Verifying - Enter Export Password:
+$  security import kubecfg.p12 -k "$HOME/Library/Keychains/login.keychain"
+1 identity imported.
+```
+Restart Chrome for it to find the client cert.
 
 
 
