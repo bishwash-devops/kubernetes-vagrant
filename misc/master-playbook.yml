@@ -34,6 +34,18 @@
         - 443
     tags: network_config
 
+  - block:
+    # This task disables swap for Kubernetes node (see https://github.com/kubernetes/kubernetes/pull/31996)
+    - name: Remove swapfile from /etc/fstab
+      mount:
+        name: swap
+        fstype: swap
+        state: absent
+    - name: Disable swap
+      command: swapoff -a
+      when: ansible_swaptotal_mb > 0
+    tags: swapoff
+
   # Install Kubernetes Binaries
   - block:
     - name: "Download kubernetes.tar.gz"
@@ -41,7 +53,7 @@
         src: "https://github.com/kubernetes/kubernetes/releases/download/v1.10.8/kubernetes.tar.gz"
         dest: "{{kube_dir}}/"
         remote_src: yes
-        creates: "{{kube_dir}}/kubernetes"
+        creates: "{{kube_dir}}/kubernetes/cluster/get-kube-binaries.sh"
 
     - name: "Run get-kube-binaries.sh"
       shell: "echo 'y' | {{kube_dir}}/kubernetes/cluster/get-kube-binaries.sh"

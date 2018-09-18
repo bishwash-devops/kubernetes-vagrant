@@ -1,0 +1,200 @@
+- hosts: all
+  become: yes
+  tasks:
+  # This task disables swap for Kubernetes node (see https://github.com/kubernetes/kubernetes/pull/31996)
+  - name: Remove swapfile from /etc/fstab
+    mount:
+      name: swap
+      fstype: swap
+      state: absent
+  - name: Disable swap
+    command: swapoff -a
+    when: ansible_swaptotal_mb > 0
+    
+  - name: install Docker
+    apt:
+      name: docker.io
+      state: present
+      update_cache: true
+
+  - name: install APT Transport HTTPS
+    apt:
+      name: apt-transport-https
+      state: present
+
+  - name: add Kubernetes apt-key
+    apt_key:
+      url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+      state: present
+
+  - name: add Kubernetes' APT repository
+    apt_repository:
+      repo: deb http://apt.kubernetes.io/ kubernetes-xenial main
+      state: present
+      filename: 'kubernetes'
+
+  - name: install kubelet
+    apt:
+      name: kubelet
+      state: present
+      update_cache: true
+
+  - name: install kubeadm
+    apt:
+      name: kubeadm
+      state: present
+
+# Playbook for Master Nodes
+- hosts: master
+  become: yes
+  tasks:
+  - name: install kubectl
+    apt:
+      name: kubectl
+      state: present
+
+  - name: initialize the cluster
+    shell: kubeadm init --apiserver-advertise-address 192.168.56.10 --pod-network-cidr=192.168.0.0/16 >> cluster_initialized.txt
+    args:
+      chdir: $HOME
+      creates: cluster_initialized.txt
+
+  # Setup .kube/config for root
+  - name: create .kube directory
+    file:
+      path: $HOME/.kube
+      state: directory
+      mode: 0755
+
+  - name: copy admin.conf to user's kube config
+    copy:
+      src: /etc/kubernetes/admin.conf
+      dest: $HOME/.kube/config
+      remote_src: yes
+
+
+  # Setup .kube/config for the {{user}}
+  - block: 
+    - name: create .kube directory
+      file:
+        path: "/home/{{user}}/.kube"
+        state: directory
+        mode: 0755
+        owner: "{{user}}"
+
+    - name: copy admin.conf to user's kube config
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: "/home/{{user}}/.kube/config"
+        remote_src: yes
+        owner: "{{user}}"
+
+  # Install Pod Network Addon
+  - name: Install Pod Network using Calico - rbac_kdd.yml
+    shell: kubectl apply -f https://docs.projectcalico.org/v3.1/getting-started/kubernetes/installation/hosted/rbac-kdd.yaml >> rbac_kdd.txt
+    args:
+      chdir: $HOME
+      creates: rbac_kdd.txt
+
+  - name: Install Pod Network using Calico - calico.yaml
+    shell: kubectl apply -f https://docs.projectcalico.org/v3.1/getting-started/kubernetes/installation/hosted/kubernetes-datastore/calico-networking/1.7/calico.yaml >> pod_network_setup.txt
+    args:
+      chdir: $HOME
+      creates: pod_network_setup.txt
+
+  - name: get join command
+    shell: kubeadm token create --print-join-command
+    register: join_command_raw
+
+  - name: set join command
+    set_fact:
+      join_command: "{{ join_command_raw.stdout_lines[0] }}"
+
+  # - name: Get kube-flannel.yml
+  #   get_url:
+  #     url: https://raw.githubusercontent.com/coreos/flannel/v0.9.1/Documentation/kube-flannel.yml
+  #     dest: $HOME/kube-flannel.yml
+
+  # - name: Edit kube-flannel to add --iface=eth1
+  #   replace:
+  #     path: $HOME/kube-flannel.yml
+  #     regexp: 'command: \[ "/opt/bin/flanneld", "--ip-masq", "--kube-subnet-mgr" \]'
+  #     replace: 'command: [ "/opt/bin/flanneld", "--ip-masq", "--kube-subnet-mgr", "--iface=eth1" ]'
+
+
+  # - name: install Pod network
+  #   shell: kubectl apply -f $HOME/kube-flannel.yml >> pod_network_setup.txt
+  #   args:
+  #     chdir: $HOME
+  #     creates: pod_network_setup.txt
+
+
+  # Kubernetes Dashboard Setup
+  - block:
+    - name: Install Kubernetes Web UI
+      shell: kubectl create -f https://raw.githubusercontent.com/kubernetes/dashboard/master/src/deploy/recommended/kubernetes-dashboard.yaml >> kubernetes_dashboard.txt
+      args:
+        chdir: $HOME
+        creates: kubernetes_dashboard.txt
+    ## TO ACCESS DASHBOARD _ 
+    ## kubectl proxy --address='0.0.0.0' --accept-hosts='.*' -- Does not allow Login
+    ## https://<master-ip>:<apiserver-port>/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy/
+
+    - name: Fetch kubecfg.crt
+      shell: grep 'client-certificate-data' /etc/kubernetes/admin.conf | head -n 1 | awk '{print $2}' | base64 -d > kubecfg.crt
+      args:
+        chdir: $HOME
+        creates: kubecfg.crt
+
+    - name: Fetch kubecfg.key
+      shell: grep 'client-key-data' /etc/kubernetes/admin.conf | head -n 1 | awk '{print $2}' | base64 -d > kubecfg.key
+      args:
+        chdir: $HOME
+        creates: kubecfg.key
+
+    - name: Generate Cliet certificate kubecfg.p12
+      shell: openssl pkcs12 -export -clcerts -inkey kubecfg.key -in kubecfg.crt -out kubecfg.p12 -name "kubernetes-client" -passout pass:password
+      args:
+        chdir: $HOME
+        creates: kubecfg.p12
+
+    - name: Download the kubecfg.p12 to local
+      fetch:
+        src: $HOME/kubecfg.p12
+        dest: "{{playbook_dir}}"
+
+    - name: Copy deployments from local to master
+      copy:
+        src: "{{playbook_dir}}/deploy"
+        dest: $HOME/
+        directory_mode: yes
+
+    - name: Create Deployments - Service Account and ClusterRoleBinding
+      shell: kubectl create -f $HOME/deploy > deploy.txt
+      args:
+        chdir: $HOME
+        creates: deploy.txt
+
+    - name: Retrieve admin-user token
+      shell: "kubectl -n kube-system describe secret $(kubectl -n kube-system get secret | grep admin-user | awk '{print $1}') | grep token: | awk '{print $2}' > admin_user.txt"
+      args:
+        chdir: $HOME
+        creates: admin_user.txt
+
+    - name: Download the admin_user.txt to local
+      fetch:
+        src: $HOME/admin_user.txt
+        dest: "{{playbook_dir}}"
+
+    tags: dashboard
+
+
+# Playbook for Worker Nodes
+- hosts: worker
+  become: yes
+  tasks:
+  - name: join cluster
+    shell: "{{ hostvars['kubemaster'].join_command }} >> node_joined.txt"
+    args:
+      chdir: $HOME
+      creates: node_joined.txt
