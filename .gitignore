@@ -71,3 +71,6 @@ test/vagrant-spec/boxes/*.box
 
 # Ignore Ansible
 *.retry
+
+# Ignore Directories
+kubemaster/
