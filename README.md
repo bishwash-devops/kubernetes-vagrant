@@ -77,7 +77,7 @@ $  security import kubecfg.p12 -k "$HOME/Library/Keychains/login.keychain"
 Restart Chrome for it to find the client cert.
 
 
-
+https://docs.giantswarm.io/guides/install-kubernetes-dashboard/
 
 
 # References
