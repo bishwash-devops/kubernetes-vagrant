@@ -79,6 +79,8 @@ Restart Chrome for it to find the client cert.
 
 https://docs.giantswarm.io/guides/install-kubernetes-dashboard/
 
+**Certs and Authentication:** http://www.joseluisgomez.com/containers/kubernetes-dashboard/
+
 
 # References
 Reference for Networking Model Design Proposals: https://github.com/kubernetes/community/blob/master/contributors/design-proposals/network/networking.md 
