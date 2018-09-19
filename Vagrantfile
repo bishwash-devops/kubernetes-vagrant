@@ -5,6 +5,9 @@
 VAGRANTFILE_API_VERSION = "2"
 HOST_ONLY_NETWORK="vboxnet0"
 
+$ansible_tags = ENV['ANSIBLE_TAGS']
+
+
 # HOST_ONLY_NETWORK_IP=192.168.56.1
 
 # master_cpu = 2
@@ -46,7 +49,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
             }
           }
           ansible.playbook = "ansible-playbook.yml"
-          ansible.tags = "deploy"
+          ansible.tags = $ansible_tags unless $ansible_tags.nil?
 
         end # end ansible
       end # end if 
