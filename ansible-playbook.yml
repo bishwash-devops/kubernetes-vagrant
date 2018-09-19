@@ -10,7 +10,7 @@
   - name: Disable swap
     command: swapoff -a
     when: ansible_swaptotal_mb > 0
-    
+
   - name: install Docker
     apt:
       name: docker.io
@@ -58,6 +58,18 @@
     args:
       chdir: $HOME
       creates: cluster_initialized.txt
+
+  # Open Required ports for kubernetes master
+  - name: Open Required ports for kubernetes master
+    ufw:
+      rule: allow
+      port: "{{item}}"
+      proto: tcp
+    with_items:
+      - 443
+      - 6443
+      - 2379:2380
+      - 10250:10255
 
   # Setup .kube/config for root
   - name: create .kube directory

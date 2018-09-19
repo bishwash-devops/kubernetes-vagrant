@@ -46,7 +46,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
             }
           }
           ansible.playbook = "ansible-playbook.yml"
-          ansible.tags = "deploy"
+          #ansible.tags = "deploy"
 
         end # end ansible
       end # end if 
