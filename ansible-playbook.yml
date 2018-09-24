@@ -101,6 +101,13 @@
         remote_src: yes
         owner: "{{user}}"
 
+  # Download the .kube/config file to local
+  - name: Download .kube/config to local
+    fetch:
+      src: "/etc/kubernetes/admin.conf"
+      dest: "{{playbook_dir}}"
+
+
   # Install Pod Network Addon
   - name: Install Pod Network using Calico - rbac_kdd.yml
     shell: kubectl apply -f https://docs.projectcalico.org/v3.1/getting-started/kubernetes/installation/hosted/rbac-kdd.yaml >> rbac_kdd.txt
@@ -205,6 +212,16 @@
 - hosts: worker
   become: yes
   tasks:
+  # Open Required ports for kubernetes worker
+  - name: Open Required ports for kubernetes worker
+    ufw:
+      rule: allow
+      port: "{{item}}"
+      proto: tcp
+    with_items:
+      - 10250
+      - 30000:32767
+
   - name: join cluster
     shell: "{{ hostvars['kubemaster'].join_command }} >> node_joined.txt"
     args:
